@@ -2,7 +2,7 @@ import fs from "fs-extra";
 import path from "path";
 import matter from "gray-matter";
 import { NoteFrontmatter, Note } from "../types/note";
-import { generateTimestampId } from "@utils/index";
+import { generateTimestampId } from "../utils";
 
 export function generateNoteTemplate(title: string, folder: string): string {
   const now = new Date().toISOString();
@@ -29,7 +29,7 @@ export function sanitizeFilename(filename: string): string {
     .trim();
 }
 
-export async function createContext(
+export async function createNote(
   notesPath: string,
   folder: string,
   title: string
