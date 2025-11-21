@@ -3,7 +3,7 @@ export interface NoteFrontmatter {
   created: string;
   updated: string;
   tags?: string[];
-  folder: string[];
+  folder: string;
 }
 
 export interface Note {
