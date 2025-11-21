@@ -3,6 +3,7 @@
 import { Command } from "commander";
 import {
   createCommand,
+  deleteCommand,
   editCommand,
   initCommand,
   listCommand,
@@ -42,5 +43,11 @@ program
   .description("Search notes by title, content, or tags")
   .option("-f, --folder <folder>", "Search only in specific folder")
   .action(searchCommand);
+
+program
+  .command("delete [title]")
+  .description("Delete a note")
+  .alias("rm")
+  .action(deleteCommand);
 
 program.parse();

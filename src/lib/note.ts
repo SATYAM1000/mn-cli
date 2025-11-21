@@ -195,3 +195,8 @@ export async function searchNotes(
 
   return results;
 }
+
+
+export async function deleteNote(filePath: string): Promise<void> {
+    await fs.remove(filePath);
+  }
