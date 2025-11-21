@@ -98,3 +98,31 @@ export async function listNotes(
 export function getRelativePath(fullPath: string, notesPath: string): string {
   return path.relative(notesPath, fullPath);
 }
+
+export async function findNoteByTitle(
+  notesPath: string,
+  title: string,
+  folder?: string
+): Promise<Note | null> {
+  const notes = await listNotes(notesPath, folder);
+
+  let found = notes.find(
+    (n) => n.frontmatter.title.toLowerCase() === title.toLowerCase()
+  );
+
+  if (!found) {
+    found = notes.find((n) =>
+      n.frontmatter.title.toLowerCase().includes(title.toLowerCase())
+    );
+  }
+
+  return found || null;
+}
+
+export async function updateNoteTimestamp(filePath: string): Promise<void> {
+  const note = await readNote(filePath);
+  note.frontmatter.updated = new Date().toISOString();
+
+  const updatedContent = matter.stringify(note.content, note.frontmatter);
+  await fs.writeFile(filePath, updatedContent);
+}

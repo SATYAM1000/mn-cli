@@ -1,7 +1,12 @@
 #!/usr/bin/env node
 
 import { Command } from "commander";
-import { createCommand, initCommand, listCommand } from "../commands";
+import {
+  createCommand,
+  editCommand,
+  initCommand,
+  listCommand,
+} from "../commands";
 
 const program = new Command();
 
@@ -25,5 +30,10 @@ program
   .description("List all notes")
   .option("-f, --folder <folder>", "Filter by folder")
   .action(listCommand);
+
+program
+  .command("edit [title]")
+  .description("Edit an existing note")
+  .action(editCommand);
 
 program.parse();
