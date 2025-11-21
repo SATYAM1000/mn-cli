@@ -8,6 +8,10 @@ import {
   initCommand,
   listCommand,
   searchCommand,
+  folderConfigCommand,
+  folderCreateCommand,
+  folderDeleteCommand,
+  folderListCommand,
 } from "../commands";
 
 const program = new Command();
@@ -49,5 +53,29 @@ program
   .description("Delete a note")
   .alias("rm")
   .action(deleteCommand);
+
+const folder = program.command("folder").description("Manage folders");
+
+folder
+  .command("create [name]")
+  .description("Create a new folder")
+  .action(folderCreateCommand);
+
+folder
+  .command("list")
+  .description("List all folders")
+  .alias("ls")
+  .action(folderListCommand);
+
+folder
+  .command("delete [name]")
+  .description("Delete a folder")
+  .alias("rm")
+  .action(folderDeleteCommand);
+
+folder
+  .command("config [name]")
+  .description("Configure folder settings")
+  .action(folderConfigCommand);
 
 program.parse();
