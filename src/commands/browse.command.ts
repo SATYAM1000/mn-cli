@@ -1,12 +1,13 @@
 import path from "path";
 import os from "os";
 import chalk from "chalk";
-import { select, Separator } from "@inquirer/prompts";
+import { select } from "@inquirer/prompts";
 import ora from "ora";
-import { highlight } from "cli-highlight";
 import { formatDistanceToNow } from "date-fns";
+import readline from "readline";
 import { loadConfig } from "../lib/config.js";
 import { listNotes } from "../lib/note.js";
+import { Note } from "../types/note.js";
 
 // Helper to wrap text to width
 function wrapText(text: string, width: number): string[] {
@@ -25,6 +26,173 @@ function wrapText(text: string, width: number): string[] {
   if (currentLine) lines.push(currentLine.trim());
 
   return lines;
+}
+
+// Helper to render side-by-side layout with real-time preview
+async function browseSideBySide(notes: Note[], folderName: string): Promise<Note | null> {
+  return new Promise((resolve) => {
+    let selectedIndex = 0;
+    const terminalWidth = process.stdout.columns || 100;
+    const terminalHeight = process.stdout.rows || 30;
+    const leftWidth = Math.floor(terminalWidth * 0.4);
+    const rightWidth = terminalWidth - leftWidth - 3;
+
+    // Set up readline for key handling
+    // Resume stdin if paused
+    if (process.stdin.isPaused()) {
+      process.stdin.resume();
+    }
+
+    // Enable keypress events (safe to call multiple times)
+    try {
+      readline.emitKeypressEvents(process.stdin);
+    } catch (e) {
+      // Already enabled, ignore
+    }
+
+    // Set raw mode AFTER emitKeypressEvents
+    if (process.stdin.isTTY) {
+      process.stdin.setRawMode(true);
+    }
+
+    function render() {
+      console.clear();
+
+      // Header
+      console.log(chalk.blue.bold(`\n📝 Notes in ${chalk.cyan(folderName)}`));
+      console.log(chalk.gray(`Total: ${notes.length} note(s)\n`));
+      console.log(chalk.gray("─".repeat(terminalWidth)));
+
+      // Column headers
+      const leftHeader = ` ${"Note List".padEnd(leftWidth - 2)}`;
+      const rightHeader = "Preview";
+      console.log(
+        chalk.cyan.bold(leftHeader) +
+        chalk.gray(" │ ") +
+        chalk.cyan.bold(rightHeader)
+      );
+      console.log(chalk.gray("─".repeat(terminalWidth)));
+
+      // Calculate how many notes we can show
+      const maxListLines = Math.min(terminalHeight - 10, notes.length);
+      const startIdx = Math.max(0, Math.min(selectedIndex - Math.floor(maxListLines / 2), notes.length - maxListLines));
+      const endIdx = Math.min(notes.length, startIdx + maxListLines);
+
+      // Get selected note for preview
+      const selectedNote = notes[selectedIndex];
+      let previewLines: string[] = [];
+
+      if (selectedNote) {
+        // Format preview content
+        previewLines.push(chalk.bold("Title: ") + chalk.cyan(selectedNote.frontmatter.title || "(untitled)"));
+        previewLines.push(chalk.bold("Folder: ") + chalk.yellow(selectedNote.frontmatter.folder));
+
+        // Date info
+        try {
+          const createdDate = new Date(selectedNote.frontmatter.created);
+          if (!isNaN(createdDate.getTime())) {
+            previewLines.push(chalk.bold("Created: ") + chalk.gray(formatDistanceToNow(createdDate, { addSuffix: true })));
+          }
+        } catch (e) {}
+
+        // Tags
+        if (selectedNote.frontmatter.tags && selectedNote.frontmatter.tags.length > 0) {
+          previewLines.push(chalk.bold("Tags: ") + selectedNote.frontmatter.tags.map(t => chalk.magenta(`#${t}`)).join(" "));
+        }
+
+        previewLines.push(""); // Empty line
+
+        // Content preview (wrapped)
+        const contentLines = selectedNote.content.split("\n").slice(0, 15);
+        for (const line of contentLines) {
+          const wrapped = wrapText(line || " ", rightWidth - 2);
+          previewLines.push(...wrapped);
+        }
+
+        if (selectedNote.content.split("\n").length > 15) {
+          previewLines.push(chalk.gray("... (truncated)"));
+        }
+      }
+
+      // Render side by side
+      const displayNotes = notes.slice(startIdx, endIdx);
+      const maxLines = Math.max(displayNotes.length, previewLines.length);
+
+      for (let i = 0; i < maxLines; i++) {
+        let leftCell = "";
+        let rightCell = "";
+
+        // Left side - note list
+        if (i < displayNotes.length) {
+          const noteIdx = startIdx + i;
+          const note = displayNotes[i];
+          const title = note.frontmatter.title || path.basename(note.filePath, ".md");
+          const truncatedTitle = title.length > leftWidth - 7
+            ? title.substring(0, leftWidth - 10) + "..."
+            : title;
+
+          const isSelected = noteIdx === selectedIndex;
+          const prefix = isSelected ? chalk.cyan("❯ ") : "  ";
+          const displayTitle = isSelected ? chalk.cyan.bold(truncatedTitle) : truncatedTitle;
+
+          leftCell = `${prefix}${displayTitle}`.padEnd(leftWidth + (isSelected ? 10 : 0)); // Account for ANSI codes
+        } else {
+          leftCell = " ".repeat(leftWidth);
+        }
+
+        // Right side - preview
+        if (i < previewLines.length) {
+          rightCell = previewLines[i];
+        }
+
+        // Print the row
+        // Strip ANSI codes to calculate actual length
+        const strippedLeftCell = leftCell.replace(/\u001b\[[0-9;]*m/g, '');
+        const padding = leftWidth - strippedLeftCell.length;
+        console.log(leftCell + " ".repeat(Math.max(0, padding)) + chalk.gray(" │ ") + rightCell);
+      }
+
+      console.log(chalk.gray("─".repeat(terminalWidth)));
+      console.log(chalk.gray("\n↑↓ navigate • ⏎ select • q quit • b back"));
+    }
+
+    function cleanup() {
+      if (process.stdin.isTTY) {
+        process.stdin.setRawMode(false);
+      }
+      process.stdin.removeAllListeners('keypress');
+    }
+
+    function onKeypress(_str: string, key: any) {
+      if (!key) return;
+
+      if (key.name === 'up' || key.name === 'k') {
+        selectedIndex = Math.max(0, selectedIndex - 1);
+        render();
+      } else if (key.name === 'down' || key.name === 'j') {
+        selectedIndex = Math.min(notes.length - 1, selectedIndex + 1);
+        render();
+      } else if (key.name === 'return' || key.name === 'enter') {
+        cleanup();
+        resolve(notes[selectedIndex]);
+      } else if (key.name === 'q' || key.name === 'escape') {
+        cleanup();
+        resolve(null);
+      } else if (key.name === 'b') {
+        cleanup();
+        resolve(null);
+      } else if (key.ctrl && key.name === 'c') {
+        cleanup();
+        process.exit(0);
+      }
+    }
+
+    // Register keypress handler
+    process.stdin.on('keypress', onKeypress);
+
+    // Render initial view
+    render();
+  });
 }
 
 export async function browseCommand() {
@@ -102,225 +270,74 @@ export async function browseCommand() {
         continue;
       }
 
-      // Browse notes in the selected folder with side-by-side preview
-      while (true) {
-        console.clear();
-        const folderName = selectedFolder === "__all__" ? "All Folders" : selectedFolder;
+      // Browse notes with real-time side-by-side preview
+      const folderName = selectedFolder === "__all__" ? "All Folders" : selectedFolder;
 
-        // Get terminal width
-        const terminalWidth = process.stdout.columns || 100;
-        const leftWidth = Math.floor(terminalWidth * 0.4);
-        const rightWidth = terminalWidth - leftWidth - 3; // Account for separator
+      // Small delay to let inquirer clean up
+      await new Promise(resolve => setTimeout(resolve, 100));
 
-        // Show header
-        console.log(chalk.blue.bold(`\n📝 Notes in ${chalk.cyan(folderName)}`));
-        console.log(chalk.gray(`Total: ${notes.length} note(s)\n`));
+      const selectedNote = await browseSideBySide(notes, folderName);
 
-        // Show side-by-side layout with all notes
-        console.log(chalk.gray("─".repeat(terminalWidth)));
-        console.log(
-          chalk.cyan.bold(` ${"Note List".padEnd(leftWidth - 2)}`) +
-          chalk.gray(" │ ") +
-          chalk.cyan.bold("Preview")
-        );
-        console.log(chalk.gray("─".repeat(terminalWidth)));
+      if (!selectedNote) {
+        // User pressed 'b' or 'q' - go back to folder selection
+        continue;
+      }
 
-        // Display notes list with preview side by side
-        const maxDisplayNotes = 10;
-        const displayNotes = notes.slice(0, maxDisplayNotes);
+      // Show action menu for selected note
+      console.clear();
+      console.log(chalk.blue.bold("\n📄 Note Selected\n"));
+      console.log(chalk.bold("Title: ") + chalk.cyan(selectedNote.frontmatter.title));
+      console.log(chalk.bold("Folder: ") + chalk.yellow(selectedNote.frontmatter.folder));
+      console.log();
 
-        for (let i = 0; i < displayNotes.length; i++) {
-          const note = displayNotes[i];
-          const title = note.frontmatter.title || path.basename(note.filePath, ".md");
-
-          // Truncate title if too long
-          const truncatedTitle = title.length > leftWidth - 5
-            ? title.substring(0, leftWidth - 8) + "..."
-            : title;
-
-          // Get first line of content as preview
-          let previewText = note.content.split("\n")[0] || "(empty)";
-          if (previewText.length > rightWidth - 5) {
-            previewText = previewText.substring(0, rightWidth - 8) + "...";
-          }
-
-          // Format the row
-          const leftCell = ` ${(i + 1).toString().padStart(2, " ")}. ${truncatedTitle}`.padEnd(leftWidth);
-          console.log(
-            chalk.white(leftCell) +
-            chalk.gray(" │ ") +
-            chalk.gray(previewText)
-          );
-        }
-
-        if (notes.length > maxDisplayNotes) {
-          console.log(chalk.gray(`\n... and ${notes.length - maxDisplayNotes} more note(s)`));
-        }
-
-        console.log(chalk.gray("─".repeat(terminalWidth)));
-        console.log();
-
-        const noteChoices = [
-          ...notes.map((note) => {
-            const title = note.frontmatter.title || path.basename(note.filePath, ".md");
-
-            // Safely format created date
-            let created = "Unknown";
-            try {
-              const createdDate = new Date(note.frontmatter.created);
-              if (!isNaN(createdDate.getTime())) {
-                created = formatDistanceToNow(createdDate, { addSuffix: true });
-              }
-            } catch (e) {
-              created = "Unknown date";
-            }
-
-            const tags = note.frontmatter.tags?.length
-              ? note.frontmatter.tags.map((t) => `#${t}`).join(" ")
-              : "";
-
-            return {
-              name: title,
-              value: note.filePath,
-              description: `${chalk.gray(created)} ${tags ? chalk.yellow(tags) : ""}`,
-            };
-          }),
+      const action = await select({
+        message: "What would you like to do?",
+        choices: [
           {
-            name: chalk.gray("← Back to folders"),
-            value: "__back__",
+            name: "📝 Edit this note",
+            value: "edit",
+            description: `mn edit "${selectedNote.frontmatter.title}"`,
+          },
+          {
+            name: "👁️  View full note",
+            value: "view",
+            description: `mn show "${selectedNote.frontmatter.title}"`,
+          },
+          {
+            name: "🗑️  Delete this note",
+            value: "delete",
+            description: "Delete this note",
+          },
+          {
+            name: chalk.gray("← Back to note list"),
+            value: "back",
             description: "",
           },
-        ];
+        ],
+      });
 
-        const selectedNote = await select({
-          message: "Select a note to view full preview:",
-          choices: noteChoices,
-          pageSize: 10,
-        });
-
-        if (selectedNote === "__back__") {
-          break;
-        }
-
-        // Show full note preview
-        const note = notes.find((n) => n.filePath === selectedNote);
-        if (!note) continue;
-
-        console.clear();
-        console.log(chalk.blue.bold("\n📄 Full Note Preview\n"));
-
-        // Note metadata
-        console.log(chalk.bold("Title: ") + chalk.cyan(note.frontmatter.title));
-        console.log(chalk.bold("Folder: ") + chalk.yellow(note.frontmatter.folder));
-
-        // Safely format dates
-        try {
-          const createdDate = new Date(note.frontmatter.created);
-          if (!isNaN(createdDate.getTime())) {
-            console.log(
-              chalk.bold("Created: ") +
-                chalk.gray(formatDistanceToNow(createdDate, { addSuffix: true }))
-            );
-          }
-        } catch (e) {
-          console.log(chalk.bold("Created: ") + chalk.gray("Unknown"));
-        }
-
-        try {
-          const updatedDate = new Date(note.frontmatter.updated);
-          if (!isNaN(updatedDate.getTime())) {
-            console.log(
-              chalk.bold("Updated: ") +
-                chalk.gray(formatDistanceToNow(updatedDate, { addSuffix: true }))
-            );
-          }
-        } catch (e) {
-          console.log(chalk.bold("Updated: ") + chalk.gray("Unknown"));
-        }
-
-        if (note.frontmatter.tags && note.frontmatter.tags.length > 0) {
-          console.log(
-            chalk.bold("Tags: ") +
-              note.frontmatter.tags.map((t) => chalk.magenta(`#${t}`)).join(" ")
-          );
-        }
-
-        console.log(chalk.gray("\n" + "─".repeat(60) + "\n"));
-
-        // Content preview
-        if (note.content.trim()) {
-          try {
-            // Show first 20 lines of content
-            const lines = note.content.split("\n").slice(0, 20);
-            const preview = lines.join("\n");
-            const highlighted = highlight(preview, {
-              language: "markdown",
-              ignoreIllegals: true,
-            });
-            console.log(highlighted);
-
-            if (note.content.split("\n").length > 20) {
-              console.log(chalk.gray("\n... (content truncated)\n"));
-            }
-          } catch (error) {
-            console.log(note.content.split("\n").slice(0, 20).join("\n"));
-          }
-        } else {
-          console.log(chalk.gray("(empty note)"));
-        }
-
-        console.log(chalk.gray("\n" + "─".repeat(60) + "\n"));
-
-        // Action menu
-        const action = await select({
-          message: "What would you like to do?",
-          choices: [
-            {
-              name: "📝 Edit this note",
-              value: "edit",
-              description: `mn edit "${note.frontmatter.title}"`,
-            },
-            {
-              name: "👁️  View full note",
-              value: "view",
-              description: `mn show "${note.frontmatter.title}"`,
-            },
-            {
-              name: "🗑️  Delete this note",
-              value: "delete",
-              description: "Delete this note",
-            },
-            {
-              name: chalk.gray("← Back to note list"),
-              value: "back",
-              description: "",
-            },
-          ],
-        });
-
-        if (action === "back") {
-          continue;
-        }
-
-        // Handle actions
-        console.log(
-          chalk.yellow(
-            `\n💡 To ${action} this note, run: ${chalk.cyan(
-              `mn ${action} "${note.frontmatter.title}"`
-            )}\n`
-          )
-        );
-        console.log(chalk.gray("Press any key to continue..."));
-
-        // Wait for keypress
-        process.stdin.setRawMode(true);
-        await new Promise((resolve) => {
-          process.stdin.once("data", () => {
-            process.stdin.setRawMode(false);
-            resolve(null);
-          });
-        });
+      if (action === "back") {
+        continue;
       }
+
+      // Handle actions
+      console.log(
+        chalk.yellow(
+          `\n💡 To ${action} this note, run: ${chalk.cyan(
+            `mn ${action} "${selectedNote.frontmatter.title}"`
+          )}\n`
+        )
+      );
+      console.log(chalk.gray("Press any key to continue..."));
+
+      // Wait for keypress
+      process.stdin.setRawMode(true);
+      await new Promise((resolve) => {
+        process.stdin.once("data", () => {
+          process.stdin.setRawMode(false);
+          resolve(null);
+        });
+      });
     }
   } catch (error) {
     spinner.fail("Failed to browse notes");
