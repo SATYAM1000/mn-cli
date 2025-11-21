@@ -6,6 +6,12 @@ import { input, confirm, select } from "@inquirer/prompts";
 import ora from "ora";
 
 import { createDefaultConfig, saveConfig, createGitIgnore } from "../lib";
+import {
+  checkGitInstalled,
+  initGitRepo,
+  setupRemote,
+  createInitialCommit,
+} from "../utils/git.js";
 
 export async function initCommand() {
   const spinner = ora();
@@ -89,6 +95,103 @@ export async function initCommand() {
     );
     await createGitIgnore(notesPath, ignoredFolders);
     spinner.succeed("Gitignore created!");
+
+    // Git sync setup
+    console.log(chalk.blue("\nGit sync setup:"));
+
+    const enableGitSync = await confirm({
+      message: "Do you want to enable Git sync with GitHub?",
+      default: false,
+    });
+
+    if (enableGitSync) {
+      // Check if git is installed
+      const gitInstalled = await checkGitInstalled();
+
+      if (!gitInstalled) {
+        console.log(chalk.yellow("\n⚠ Git is not installed on your system."));
+        console.log(chalk.gray("Git sync will be disabled. Install Git and run ") + chalk.cyan("mn sync setup") + chalk.gray(" to enable it later."));
+      } else {
+        // Initialize git repository
+        spinner.start("Initializing Git repository...");
+        await initGitRepo(notesPath);
+        spinner.succeed("Git repository initialized!");
+
+        // Ask for remote URL
+        const remoteUrl = await input({
+          message: "Enter your GitHub repository URL (e.g., https://github.com/user/repo.git):",
+          validate: (value) => {
+            if (!value.trim()) return "Remote URL cannot be empty";
+            // Remove any git command prefix if user accidentally included it
+            const cleanValue = value.replace(/^git\s+remote\s+add\s+\w+\s+/, '').trim();
+            if (!cleanValue.includes("github.com")) return "Please provide a valid GitHub URL";
+            if (cleanValue.startsWith("git remote")) return "Please enter only the URL, not the git command";
+            return true;
+          },
+          transformer: (value) => {
+            // Clean up the URL if user entered git command
+            return value.replace(/^git\s+remote\s+add\s+\w+\s+/, '').trim();
+          },
+        });
+
+        // Ask for branch name
+        const branch = await input({
+          message: "Enter branch name:",
+          default: "main",
+        });
+
+        // Ask for auto-sync
+        const autoSync = await confirm({
+          message: "Enable automatic sync after every operation?",
+          default: true,
+        });
+
+        // Setup remote
+        spinner.start("Setting up remote...");
+        await setupRemote(notesPath, remoteUrl);
+        spinner.succeed("Remote configured!");
+
+        // Create initial commit
+        spinner.start("Creating initial commit...");
+        await createInitialCommit(notesPath, branch);
+        spinner.succeed("Initial commit created!");
+
+        // Update config with git sync settings
+        config.sync = {
+          enabled: true,
+          provider: "git",
+          git: {
+            enabled: true,
+            remoteUrl,
+            branch,
+            autoSync,
+          },
+        };
+
+        await saveConfig(configPath, config);
+
+        console.log(chalk.green("\n✓ Git sync configured!"));
+        console.log(chalk.gray("  • Remote: ") + chalk.cyan(remoteUrl));
+        console.log(chalk.gray("  • Branch: ") + chalk.cyan(branch));
+        console.log(chalk.gray("  • Auto-sync: ") + chalk.cyan(autoSync ? "Enabled" : "Disabled"));
+
+        // Try initial push
+        console.log(chalk.blue("\nPushing to remote..."));
+        try {
+          spinner.start("Pushing initial commit...");
+          const { pushToRemote } = await import("../utils/git.js");
+          await pushToRemote(notesPath, branch);
+          spinner.succeed("Pushed to remote!");
+        } catch (error) {
+          spinner.warn("Initial push failed");
+          console.log(chalk.yellow("\n⚠ Could not push to remote. This might be because:"));
+          console.log(chalk.gray("  • The repository doesn't exist yet on GitHub"));
+          console.log(chalk.gray("  • You need to authenticate with GitHub"));
+          console.log(chalk.gray("  • The branch name is different"));
+          console.log(chalk.gray("\nRun ") + chalk.cyan("mn sync") + chalk.gray(" manually after setting up the remote repository."));
+        }
+      }
+    }
 
     console.log(chalk.green("\n✓ Notes initialized successfully!\n"));
     console.log(chalk.white("Created folders:"));

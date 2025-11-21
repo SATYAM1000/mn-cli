@@ -5,6 +5,7 @@ import { confirm, select } from "@inquirer/prompts";
 import ora from "ora";
 import { loadConfig } from "../lib/config.js";
 import { listNotes, findNoteByTitle, deleteNote } from "../lib/note.js";
+import { autoSync } from "../lib/sync.js";
 
 export async function deleteCommand(title?: string) {
   const spinner = ora();
@@ -101,6 +102,9 @@ export async function deleteCommand(title?: string) {
     spinner.succeed("Note deleted!");
 
     console.log(chalk.green("\n✓ Note deleted successfully!"));
+
+    // Auto-sync with remote
+    await autoSync(`Delete note: ${noteToDelete.frontmatter.title}`);
   } catch (error) {
     spinner.fail("Failed to delete note");
     console.error(

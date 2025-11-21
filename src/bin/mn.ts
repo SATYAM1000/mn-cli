@@ -14,6 +14,12 @@ import {
   folderListCommand,
   showCommand,
 } from "../commands";
+import {
+  syncCommand,
+  syncSetupCommand,
+  syncStatusCommand,
+  syncDisableCommand,
+} from "../commands/sync.command.js";
 
 const program = new Command();
 
@@ -84,5 +90,23 @@ folder
   .command("config [name]")
   .description("Configure folder settings")
   .action(folderConfigCommand);
+
+// Sync commands
+const sync = program.command("sync").description("Sync notes with remote").action(syncCommand);
+
+sync
+  .command("setup")
+  .description("Setup Git sync with GitHub")
+  .action(syncSetupCommand);
+
+sync
+  .command("status")
+  .description("Show Git sync status")
+  .action(syncStatusCommand);
+
+sync
+  .command("disable")
+  .description("Disable Git sync")
+  .action(syncDisableCommand);
 
 program.parse();

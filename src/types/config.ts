@@ -3,10 +3,18 @@ export interface FolderSettings {
   gitIgnored: boolean;
 }
 
+export interface GitSyncSettings {
+  enabled: boolean;
+  remoteUrl: string;
+  branch: string;
+  autoSync: boolean;
+}
+
 export interface SyncSettings {
   enabled: boolean;
   provider?: "git" | "dropbox" | "gdrive";
   remotePath?: string;
+  git?: GitSyncSettings;
 }
 
 export interface NoteConfig {

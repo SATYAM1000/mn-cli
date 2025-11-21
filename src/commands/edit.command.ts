@@ -10,6 +10,7 @@ import {
   updateNoteTimestamp,
 } from "../lib/note.js";
 import { openInEditor } from "../utils/editor.js";
+import { autoSync } from "../lib/sync.js";
 
 export async function editCommand(title?: string) {
   const spinner = ora();
@@ -103,6 +104,9 @@ export async function editCommand(title?: string) {
     spinner.succeed("Note updated!");
 
     console.log(chalk.green("\n✓ Note saved successfully!"));
+
+    // Auto-sync with remote
+    await autoSync(`Edit note: ${noteToEdit.frontmatter.title}`);
   } catch (error) {
     spinner.fail("Failed to edit note");
     console.error(

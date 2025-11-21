@@ -6,3 +6,4 @@ export * from "./search.command";
 export * from "./delete.command";
 export * from "./folder.command";
 export * from "./show.command";
+export * from "./sync.command";

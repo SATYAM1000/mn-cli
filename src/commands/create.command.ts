@@ -3,7 +3,8 @@ import os from "os";
 import chalk from "chalk";
 import { input, select } from "@inquirer/prompts";
 import ora from "ora";
-import { loadConfig ,createNote} from "../lib";
+import { loadConfig, createNote } from "../lib";
+import { autoSync } from "../lib/sync.js";
 
 export async function createCommand() {
   const spinner = ora();
@@ -72,6 +73,9 @@ export async function createCommand() {
       chalk.gray("  • Edit the note: ") + chalk.yellow(`mn edit "${title}"`)
     );
     console.log(chalk.gray("  • List all notes: ") + chalk.yellow("mn list"));
+
+    // Auto-sync with remote
+    await autoSync(`Create note: ${title}`);
   } catch (error) {
     spinner.fail("Failed to create note");
     console.error(

@@ -15,6 +15,7 @@ import {
   sanitizeFolderName,
 } from "../lib/folder.js";
 import { createGitIgnore } from "../lib/gitignore.js";
+import { autoSync } from "../lib/sync.js";
 
 export async function folderCreateCommand(name?: string) {
   const spinner = ora();
@@ -99,6 +100,9 @@ export async function folderCreateCommand(name?: string) {
       chalk.gray("Git ignored: ") +
         (gitIgnored ? chalk.yellow("Yes") : chalk.gray("No"))
     );
+
+    // Auto-sync with remote
+    await autoSync(`Create folder: ${sanitizedName}`);
   } catch (error) {
     spinner.fail("Failed to create folder");
     console.error(
@@ -269,6 +273,9 @@ export async function folderDeleteCommand(name?: string) {
     spinner.succeed("Folder deleted!");
 
     console.log(chalk.green("\n✓ Folder deleted successfully!"));
+
+    // Auto-sync with remote
+    await autoSync(`Delete folder: ${folderName}`);
   } catch (error) {
     spinner.fail("Failed to delete folder");
     console.error(
@@ -364,6 +371,9 @@ export async function folderConfigCommand(name?: string) {
     spinner.succeed("Settings updated!");
 
     console.log(chalk.green("\n✓ Folder settings updated successfully!"));
+
+    // Auto-sync with remote
+    await autoSync(`Configure folder: ${folderName}`);
   } catch (error) {
     spinner.fail("Failed to update folder settings");
     console.error(
