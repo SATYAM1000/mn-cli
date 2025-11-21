@@ -20,6 +20,8 @@ import {
   syncStatusCommand,
   syncDisableCommand,
 } from "../commands/sync.command.js";
+import { addCommand } from "../commands/add.command.js";
+import { browseCommand } from "../commands/browse.command.js";
 
 const program = new Command();
 
@@ -59,7 +61,19 @@ program
   .command("search <query>")
   .description("Search notes by title, content, or tags")
   .option("-f, --folder <folder>", "Search only in specific folder")
+  .option("-i, --interactive", "Interactive mode - select from results")
   .action(searchCommand);
+
+program
+  .command("add <content>")
+  .description("Quick add a note")
+  .option("-f, --folder <folder>", "Folder to add note to (default: general)")
+  .action(addCommand);
+
+program
+  .command("browse")
+  .description("Browse notes interactively")
+  .action(browseCommand);
 
 program
   .command("delete [title]")

@@ -3,12 +3,13 @@ import os from "os";
 import chalk from "chalk";
 import ora from "ora";
 import Table from "cli-table3";
+import { select } from "@inquirer/prompts";
 import { loadConfig } from "../lib/config.js";
 import { searchNotes } from "../lib/note.js";
 
 export async function searchCommand(
   query: string,
-  options: { folder?: string }
+  options: { folder?: string; interactive?: boolean }
 ) {
   const spinner = ora();
 
@@ -111,11 +112,48 @@ export async function searchCommand(
         chalk.white(results.length) +
         chalk.gray(" result(s)")
     );
-    console.log(
-      chalk.gray("\nTip: Use ") +
-        chalk.cyan('mn edit "title"') +
-        chalk.gray(" to open a note")
-    );
+
+    // Interactive mode - let user select a result
+    if (options.interactive && results.length > 0) {
+      console.log();
+      const choices = [
+        ...results.map((result) => ({
+          name: result.note.frontmatter.title || path.basename(result.note.filePath, ".md"),
+          value: result.note.filePath,
+          description: `Score: ${result.score} | ${result.note.frontmatter.folder}`,
+        })),
+        {
+          name: chalk.gray("Cancel"),
+          value: "__cancel__",
+          description: "",
+        },
+      ];
+
+      const selected = await select({
+        message: "Select a note to view:",
+        choices,
+        pageSize: 10,
+      });
+
+      if (selected !== "__cancel__") {
+        const selectedNote = results.find((r) => r.note.filePath === selected);
+        if (selectedNote) {
+          console.log(
+            chalk.yellow(
+              `\n💡 To view this note, run: ${chalk.cyan(
+                `mn show "${selectedNote.note.frontmatter.title}"`
+              )}\n`
+            )
+          );
+        }
+      }
+    } else {
+      console.log(
+        chalk.gray("\nTip: Use ") +
+          chalk.cyan('mn search "query" -i') +
+          chalk.gray(" for interactive mode")
+      );
+    }
   } catch (error) {
     spinner.fail("Search failed");
     console.error(
