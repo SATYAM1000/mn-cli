@@ -6,6 +6,7 @@ import {
   editCommand,
   initCommand,
   listCommand,
+  searchCommand,
 } from "../commands";
 
 const program = new Command();
@@ -35,5 +36,11 @@ program
   .command("edit [title]")
   .description("Edit an existing note")
   .action(editCommand);
+
+program
+  .command("search <query>")
+  .description("Search notes by title, content, or tags")
+  .option("-f, --folder <folder>", "Search only in specific folder")
+  .action(searchCommand);
 
 program.parse();
