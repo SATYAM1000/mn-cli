@@ -12,6 +12,7 @@ import {
   folderCreateCommand,
   folderDeleteCommand,
   folderListCommand,
+  showCommand,
 } from "../commands";
 
 const program = new Command();
@@ -36,6 +37,12 @@ program
   .description("List all notes")
   .option("-f, --folder <folder>", "Filter by folder")
   .action(listCommand);
+
+program
+  .command("show [title]")
+  .description("Show/preview a note")
+  .alias("view")
+  .action(showCommand);
 
 program
   .command("edit [title]")
