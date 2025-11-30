@@ -22,6 +22,7 @@ import {
 } from "../commands/sync.command.js";
 import { addCommand } from "../commands/add.command.js";
 import { browseCommand } from "../commands/browse.command.js";
+import { copyCommand } from "../commands/copy.command.js";
 
 const program = new Command();
 
@@ -74,6 +75,13 @@ program
   .command("browse")
   .description("Browse notes interactively")
   .action(browseCommand);
+
+program
+  .command("copy <id>")
+  .description("Copy note content to clipboard by ID (use 'mn list' to see IDs)")
+  .option("-t, --title", "Copy only the title")
+  .option("-c, --content", "Copy only the content (default)")
+  .action(copyCommand);
 
 program
   .command("delete [title]")

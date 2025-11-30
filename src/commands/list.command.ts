@@ -46,12 +46,13 @@ export async function listCommand(options: { folder?: string }) {
 
     const table = new Table({
       head: [
+        chalk.cyan("#"),
         chalk.cyan("Title"),
         chalk.cyan("Folder"),
         chalk.cyan("Created"),
         chalk.cyan("Tags"),
       ],
-      colWidths: [30, 15, 20, 25],
+      colWidths: [5, 28, 13, 18, 20],
       wordWrap: true,
       style: {
         head: [],
@@ -59,8 +60,10 @@ export async function listCommand(options: { folder?: string }) {
       },
     });
 
-    // Add rows
-    for (const note of notes) {
+    // Add rows with ID
+    for (let i = 0; i < notes.length; i++) {
+      const note = notes[i];
+      const id = i + 1; // 1-indexed for user
       const title =
         note.frontmatter.title || path.basename(note.filePath, ".md");
       const folder = note.frontmatter.folder || "-";
@@ -72,6 +75,7 @@ export async function listCommand(options: { folder?: string }) {
         : "-";
 
       table.push([
+        chalk.gray(id.toString()),
         chalk.white(title),
         chalk.gray(folder),
         chalk.gray(created),
@@ -101,6 +105,8 @@ export async function listCommand(options: { folder?: string }) {
         );
       });
     }
+
+    console.log(chalk.gray("\nTip: Use ") + chalk.cyan("mn copy <#>") + chalk.gray(" to copy a note to clipboard"));
   } catch (error) {
     spinner.fail("Failed to list notes");
     console.error(
