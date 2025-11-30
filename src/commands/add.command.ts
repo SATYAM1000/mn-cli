@@ -5,7 +5,7 @@ import ora from "ora";
 import fs from "fs-extra";
 import matter from "gray-matter";
 import { loadConfig } from "../lib/config.js";
-import { generateNoteTemplate } from "../lib/note.js";
+import { generateNoteTemplate, getNextNoteId } from "../lib/note.js";
 import { autoSync } from "../lib/sync.js";
 
 export async function addCommand(content: string, options: { folder?: string }) {
@@ -35,7 +35,7 @@ export async function addCommand(content: string, options: { folder?: string }) 
     }
 
     // Determine folder
-    let folder = options.folder || "general";
+    const folder = options.folder || "general";
 
     // Check if folder exists
     if (!config.folderSettings[folder]) {
@@ -49,6 +49,9 @@ export async function addCommand(content: string, options: { folder?: string }) 
 
     spinner.start("Creating note...");
 
+    // Get next stable ID
+    const id = await getNextNoteId(notesPath);
+
     // Create note
     const { generateTimestampId } = await import("../utils/index.js");
     const filename = `${generateTimestampId()}.md`;
@@ -58,25 +61,18 @@ export async function addCommand(content: string, options: { folder?: string }) 
     await fs.ensureDir(folderPath);
 
     // Generate note with content as both title and content
-    const noteTemplate = generateNoteTemplate(title, folder);
+    const noteTemplate = generateNoteTemplate(title, folder, id);
     const parsed = matter(noteTemplate);
 
     // Set the content and write file
     const noteContent = matter.stringify(content, parsed.data);
     await fs.writeFile(filePath, noteContent);
 
-    spinner.succeed("Note added successfully!");
+    spinner.succeed("Note added!");
 
-    console.log(chalk.green("\n✓ Note added!\n"));
-    console.log(chalk.gray("Title: ") + chalk.cyan(title));
-    console.log(chalk.gray("Folder: ") + chalk.cyan(folder));
-    console.log(chalk.gray("Location: ") + chalk.gray(filePath));
-
-    console.log(chalk.white("\nNext steps:"));
-    console.log(
-      chalk.gray("  • Edit: ") + chalk.yellow(`mn edit "${title}"`)
-    );
-    console.log(chalk.gray("  • View: ") + chalk.yellow(`mn show "${title}"`));
+    // Compact output like nb
+    const filename2 = path.basename(filePath);
+    console.log(chalk.gray(`[${id}]`) + ` ${chalk.green(filename2)} · "${title}"`);
 
     await autoSync(`Add note: ${title}`);
   } catch (error) {

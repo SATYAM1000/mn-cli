@@ -49,30 +49,12 @@ export async function createCommand() {
     });
 
     spinner.start("Creating note...");
-    const filePath = await createNote(notesPath, folder, title);
-    spinner.succeed("Note created successfully!");
+    const { filePath, id } = await createNote(notesPath, folder, title);
+    spinner.succeed("Note created!");
 
-    console.log(chalk.green("\n✓ Note created!\n"));
-    console.log(chalk.gray("Location: ") + chalk.cyan(filePath));
-    console.log(chalk.gray("Folder: ") + chalk.cyan(folder));
-    console.log(chalk.gray("Title: ") + chalk.cyan(title));
-
-    if (config.folderSettings[folder].encrypted) {
-      console.log(
-        chalk.yellow("\n⚠ Note: This folder is marked as encrypted.")
-      );
-      console.log(
-        chalk.yellow("Encryption will be implemented in future updates.")
-      );
-    }
-
-    // SUGGEST NEXT ACTIONS
-
-    console.log(chalk.white("\nNext steps:"));
-    console.log(
-      chalk.gray("  • Edit the note: ") + chalk.yellow(`mn edit "${title}"`)
-    );
-    console.log(chalk.gray("  • List all notes: ") + chalk.yellow("mn list"));
+    // Compact output like nb
+    const filename = path.basename(filePath);
+    console.log(chalk.gray(`[${id}]`) + ` ${chalk.green(filename)} · "${title}"`);
 
     // Auto-sync with remote
     await autoSync(`Create note: ${title}`);

@@ -6,10 +6,67 @@ import { generateTimestampId } from "../utils";
 
 import { glob } from "glob";
 
-export function generateNoteTemplate(title: string, folder: string): string {
+// Get the next available ID by scanning all notes
+export async function getNextNoteId(notesPath: string): Promise<number> {
+  const pattern = path.join(notesPath, "**", "*.md");
+  const files = await glob(pattern, {
+    ignore: ["**/node_modules/**", "**/.git/**"],
+    absolute: true,
+  });
+
+  let maxId = 0;
+
+  for (const file of files) {
+    try {
+      const content = await fs.readFile(file, "utf-8");
+      const parsed = matter(content);
+      const id = parsed.data.id;
+      if (typeof id === "number" && id > maxId) {
+        maxId = id;
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return maxId + 1;
+}
+
+// Find note by stable ID
+export async function findNoteById(
+  notesPath: string,
+  id: number
+): Promise<Note | null> {
+  const pattern = path.join(notesPath, "**", "*.md");
+  const files = await glob(pattern, {
+    ignore: ["**/node_modules/**", "**/.git/**"],
+    absolute: true,
+  });
+
+  for (const file of files) {
+    try {
+      const content = await fs.readFile(file, "utf-8");
+      const parsed = matter(content);
+      if (parsed.data.id === id) {
+        return {
+          frontmatter: parsed.data as NoteFrontmatter,
+          content: parsed.content,
+          filePath: file,
+        };
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return null;
+}
+
+export function generateNoteTemplate(title: string, folder: string, id?: number): string {
   const now = new Date().toISOString();
 
   const frontmatter: NoteFrontmatter = {
+    id,
     title,
     created: now,
     updated: now,
@@ -35,7 +92,7 @@ export async function createNote(
   notesPath: string,
   folder: string,
   title: string
-): Promise<string> {
+): Promise<{ filePath: string; id: number }> {
   const filename = `${generateTimestampId()}.md`;
   const folderPath = path.join(notesPath, folder);
   const filePath = path.join(folderPath, filename);
@@ -46,10 +103,13 @@ export async function createNote(
     throw new Error(`Note "${filename}" already exists in ${folder}/`);
   }
 
+  // Get next available ID
+  const id = await getNextNoteId(notesPath);
+
   await fs.ensureDir(folderPath);
-  const noteContent = generateNoteTemplate(title, folder);
+  const noteContent = generateNoteTemplate(title, folder, id);
   await fs.writeFile(filePath, noteContent);
-  return filePath;
+  return { filePath, id };
 }
 
 export async function readNote(filePath: string): Promise<Note> {

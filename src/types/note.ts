@@ -1,4 +1,5 @@
 export interface NoteFrontmatter {
+  id?: number;
   title: string;
   created: string;
   updated: string;
