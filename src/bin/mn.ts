@@ -23,6 +23,7 @@ import {
 import { addCommand } from "../commands/add.command.js";
 import { browseCommand } from "../commands/browse.command.js";
 import { copyCommand } from "../commands/copy.command.js";
+import { useCommand } from "../commands/use.command.js";
 
 const program = new Command();
 
@@ -82,6 +83,12 @@ program
   .option("-t, --title", "Copy only the title")
   .option("-c, --content", "Copy only the content (default)")
   .action(copyCommand);
+
+program
+  .command("use <id>")
+  .alias("run")
+  .description("Execute note content as a shell command")
+  .action(useCommand);
 
 program
   .command("delete [title]")
